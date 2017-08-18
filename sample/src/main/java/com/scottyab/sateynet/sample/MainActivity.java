@@ -10,6 +10,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.text.TextUtils;
+import android.util.Base64;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -17,10 +19,9 @@ import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
 
-import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.GoogleApiAvailability;
+import com.scottyab.safetynet.AttestationStatement;
 import com.scottyab.safetynet.SafetyNetHelper;
-import com.scottyab.safetynet.SafetyNetResponse;
+import com.scottyab.safetynet.SafetyNetVerificationException;
 import com.scottyab.safetynet.Utils;
 import com.scottyab.safetynet.sample.BuildConfig;
 import com.scottyab.safetynet.sample.R;
@@ -39,6 +40,7 @@ public class MainActivity extends AppCompatActivity {
     private View loading;
 
     private SafetyNetHelper safetyNetHelper;
+    private AttestationStatement lastAttestationStatement;
 
     private TextView resultsTV;
     private TextView nonceTV;
@@ -61,10 +63,6 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "AndroidAPIKEY: " + Utils.getSigningKeyFingerprint(this) + ";" + getPackageName());
 
         initViews();
-
-        if (ConnectionResult.SUCCESS != GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(this)) {
-            handleError(0, "GooglePlayServices is not available on this device.\n\nThis SafetyNet test will not work");
-        }
     }
 
     private void initViews() {
@@ -92,66 +90,43 @@ public class MainActivity extends AppCompatActivity {
 
         Log.d(TAG, "SafetyNet start request");
         safetyNetHelper.requestTest(this, new SafetyNetHelper.SafetyNetWrapperCallback() {
-            @Override
-            public void error(int errorCode, String errorMessage) {
-                showLoading(false);
-                handleError(errorCode, errorMessage);
-            }
+	        @Override
+	        public void error(Exception e) {
+		        showLoading(false);
+		        handleError(false, e);
+	        }
 
             @Override
-            public void success(boolean ctsProfileMatch, boolean basicIntegrity) {
-                Log.d(TAG, "SafetyNet req success: ctsProfileMatch:" + ctsProfileMatch + " and basicIntegrity, " + basicIntegrity);
+            public void success(AttestationStatement response) {
+                Log.d(TAG, "SafetyNet req success: " + response);
+	            lastAttestationStatement = response;
                 showLoading(false);
-                updateUIWithSuccessfulResult(safetyNetHelper.getLastResponse());
+                updateUIWithSuccessfulResult(response);
             }
+
+	        @Override
+	        public void failure(SafetyNetVerificationException e) {
+		        showLoading(false);
+		        handleError(true, e);
+	        }
         });
-
-
     }
 
-    private void handleError(int errorCode, String errorMsg) {
-        Log.e(TAG, errorMsg);
+	private void handleError(boolean failure, Exception e) {
+		resultsTV.setText(failure ? "Failure" : "Error");
+		String msg;
+		if (e instanceof SafetyNetVerificationException) {
+			msg = ((SafetyNetVerificationException) e).getErrorCode() + "\n" + e.toString();
+		} else {
+			msg = e.toString();
+		}
+		resultNoteTV.setText(msg);
 
-        StringBuilder b = new StringBuilder();
-
-        switch (errorCode) {
-            default:
-            case SafetyNetHelper.SAFETY_NET_API_REQUEST_UNSUCCESSFUL:
-                b.append("SafetyNet request failed\n");
-                b.append("(This could be a networking issue.)\n");
-                break;
-            case SafetyNetHelper.RESPONSE_ERROR_VALIDATING_SIGNATURE:
-                b.append("SafetyNet request: success\n");
-                b.append("Response signature validation: error\n");
-                break;
-            case SafetyNetHelper.RESPONSE_FAILED_SIGNATURE_VALIDATION:
-                b.append("SafetyNet request: success\n");
-                b.append("Response signature validation: fail\n");
-                break;
-            case SafetyNetHelper.RESPONSE_VALIDATION_FAILED:
-                b.append("SafetyNet request: success\n");
-                b.append("Response validation: fail\n");
-                break;
-            case ConnectionResult.SERVICE_VERSION_UPDATE_REQUIRED:
-                b.append("SafetyNet request: fail\n");
-                b.append("\n*GooglePlayServices outdated*\n");
-                try {
-                    int v = getPackageManager().getPackageInfo("com.google.android.gms", 0).versionCode;
-                    String vName = getPackageManager().getPackageInfo("com.google.android.gms", 0).versionName.split(" ")[0];
-                    b.append("You are running version:\n" + vName + " " + v + "\nSafetyNet requires minimum:\n7.3.27 7327000\n");
-                } catch (Exception NameNotFoundException) {
-                    b.append("Could not find GooglePlayServices on this device.\nPackage com.google.android.gms missing.");
-                }
-                break;
-        }
-        resultsTV.setText(b.toString());
-        resultNoteTV.setText("Error Msg:\n" + errorMsg);
-
-        resultsIcon.setImageResource(R.drawable.problem);
-        successResultsContainer.setVisibility(View.GONE);
-        welcomeTV.setVisibility(View.GONE);
-        revealResults(ContextCompat.getColor(this, R.color.problem));
-    }
+		resultsIcon.setImageResource(R.drawable.problem);
+		successResultsContainer.setVisibility(View.GONE);
+		welcomeTV.setVisibility(View.GONE);
+		revealResults(ContextCompat.getColor(this, R.color.problem));
+	}
 
     private void showLoading(boolean show) {
         loading.setVisibility(show ? View.VISIBLE : View.GONE);
@@ -192,13 +167,17 @@ public class MainActivity extends AppCompatActivity {
         colorAnimation.start();
     }
 
-    private void updateUIWithSuccessfulResult(SafetyNetResponse safetyNetResponse) {
+    private void updateUIWithSuccessfulResult(AttestationStatement safetyNetResponse) {
         resultsTV.setText(getString(R.string.safety_results, safetyNetResponse.isCtsProfileMatch(), safetyNetResponse.isBasicIntegrity()));
+        if (!TextUtils.isEmpty(safetyNetResponse.getAdvice())) {
+	        resultsTV.append("\nAdvice: ");
+	        resultsTV.append(safetyNetResponse.getAdvice());
+        }
         resultNoteTV.setText(R.string.safety_results_note);
 
         successResultsContainer.setVisibility(View.VISIBLE);
 
-        nonceTV.setText(safetyNetResponse.getNonce());
+        nonceTV.setText(Base64.encodeToString(safetyNetResponse.getNonce(), Base64.NO_WRAP));
 
         SimpleDateFormat sim = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault());
         Date timeOfResponse = new Date(safetyNetResponse.getTimestampMs());
@@ -224,7 +203,7 @@ public class MainActivity extends AppCompatActivity {
             SampleAppUtils.showInfoDialog(this);
             return true;
         } else if (id == R.id.action_sharee) {
-            SampleAppUtils.shareTestResults(this, safetyNetHelper.getLastResponse());
+            SampleAppUtils.shareTestResults(this, lastAttestationStatement);
             return true;
         } else if (id == R.id.action_github) {
             SampleAppUtils.openGitHubProjectPage(this);

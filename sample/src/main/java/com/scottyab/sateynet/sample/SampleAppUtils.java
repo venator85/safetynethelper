@@ -10,7 +10,7 @@ import android.net.Uri;
 import android.support.v7.app.AlertDialog;
 import android.widget.Toast;
 
-import com.scottyab.safetynet.SafetyNetResponse;
+import com.scottyab.safetynet.AttestationStatement;
 import com.scottyab.safetynet.sample.R;
 
 
@@ -50,7 +50,7 @@ public class SampleAppUtils {
     }
 
 
-    static void shareTestResults(Activity activity, SafetyNetResponse lastResponse) {
+    static void shareTestResults(Activity activity, AttestationStatement lastResponse) {
         if (lastResponse != null) {
             String body = lastResponse.toString();
             Intent shareIntent = newEmailIntent(null, activity.getString(R.string.app_name) + " " + getAppVersion(activity), body, false);

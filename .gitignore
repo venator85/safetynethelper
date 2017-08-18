@@ -14,3 +14,4 @@ captures/
 
 # Misc
 .DS_Store
+gradle.properties

@@ -1,23 +1,29 @@
 package com.scottyab.safetynet;
 
 import android.content.Context;
-import android.os.Bundle;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+import android.support.annotation.UiThread;
 import android.text.TextUtils;
 import android.util.Base64;
-import android.util.Log;
 
 import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.common.api.ResultCallback;
-import com.google.android.gms.common.api.Status;
+import com.google.android.gms.common.GoogleApiAvailability;
+import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
 import com.google.android.gms.safetynet.SafetyNet;
 import com.google.android.gms.safetynet.SafetyNetApi;
+import com.google.android.gms.tasks.Continuation;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
+import static com.scottyab.safetynet.SafetyNetVerificationException.ErrorCode.PAYLOAD_VALIDATION_FAILED;
 
 
 /**
@@ -27,244 +33,167 @@ import java.util.List;
  * Doesn't handle Google play services errors, just calls error on callback.
  * <p/>
  */
-public class SafetyNetHelper implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
+public class SafetyNetHelper {
 
-    private static final String TAG = SafetyNetHelper.class.getSimpleName();
-    public static final int SAFETY_NET_API_REQUEST_UNSUCCESSFUL = 999;
-    public static final int RESPONSE_ERROR_VALIDATING_SIGNATURE = 1000;
-    public static final int RESPONSE_FAILED_SIGNATURE_VALIDATION = 1002;
-    public static final int RESPONSE_FAILED_SIGNATURE_VALIDATION_NO_API_KEY = 1003;
-    public static final int RESPONSE_VALIDATION_FAILED = 1001;
+	private static final String TAG = SafetyNetHelper.class.getSimpleName();
+	/**
+	 * This is used to validate the payload response from the SafetyNet.API,
+	 * if it exceeds this duration, the response is considered invalid.
+	 */
+	private static long MAX_TIMESTAMP_DURATION = TimeUnit.MINUTES.toMillis(2);
 
+	private final String googleDeviceVerificationApiKey;
+	private final SecureRandom secureRandom;
+	private final Executor executor;
 
-    /**
-     * This is used to validate the payload response from the SafetyNet.API,
-     * if it exceeds this duration, the response is considered invalid.
-     */
-    private static int MAX_TIMESTAMP_DURATION = 2 * 60 * 1000;
+	//used for local validation of API response payload
+	private byte[] requestNonce;
+	private long requestTimestamp;
 
-    private final SecureRandom secureRandom;
-    private GoogleApiClient googleApiClient;
+	/**
+	 * @param googleDeviceVerificationApiKey used to validate safety net response see https://developer.android.com/google/play/safetynet/start.html#verify-compat-check
+	 */
+	public SafetyNetHelper(@NonNull String googleDeviceVerificationApiKey) {
+		if (TextUtils.isEmpty(googleDeviceVerificationApiKey)) {
+			throw new IllegalArgumentException("Google Device Verification Api Key not defined. See https://developer.android.com/google/play/safetynet/start.html#verify-compat-check");
+		}
+		this.googleDeviceVerificationApiKey = googleDeviceVerificationApiKey;
+		secureRandom = new SecureRandom();
+		executor = Executors.newSingleThreadExecutor();
+	}
 
-    //used for local validation of API response payload
-    private byte[] requestNonce;
-    private long requestTimestamp;
-    private String packageName;
+	/**
+	 * Call the SafetyNet test to check if this device profile /ROM has passed the CTS test
+	 *
+	 * @param context  used to build and init the GoogleApiClient
+	 * @param callback results and error handling
+	 */
+	@UiThread
+	public void requestTest(@NonNull final Context context, @NonNull final SafetyNetWrapperCallback callback) {
+		int googlePlayServicesAvailable = GoogleApiAvailability.getInstance()
+				.isGooglePlayServicesAvailable(context);
+		if (googlePlayServicesAvailable != ConnectionResult.SUCCESS) {
+			callback.error(new GooglePlayServicesNotAvailableException(googlePlayServicesAvailable));
+			return;
+		}
 
-    private List<String> apkCertificateDigests;
-    private String apkDigest;
+		requestNonce = generateOneTimeRequestNonce();
+		requestTimestamp = System.currentTimeMillis();
 
+		SafetyNet.getClient(context)
+				.attest(requestNonce, googleDeviceVerificationApiKey)
+				.continueWith(executor, new Continuation<SafetyNetApi.AttestationResponse, Result>() {
+					@Override
+					public Result then(@NonNull Task<SafetyNetApi.AttestationResponse> task) throws Exception {
+						final String jwsResult = task.getResult()
+								.getJwsResult();
 
-    private SafetyNetWrapperCallback callback;
+						/*
+						 * We perform the response verification on an executor (background thread) since the apk
+						 * digest calculation may took a long time if the apk is large, and we will deliver the
+						 * final result via a callback anyway, so there is no point in blocking the UI.
+						 */
 
-    private String googleDeviceVerificationApiKey;
-    private SafetyNetResponse lastResponse;
+						try {
+							OfflineVerifier verifier = OfflineVerifier.parse(jwsResult);
+							AttestationStatement response = verifier.getAttestationStatement();
 
-    /**
-     * @param googleDeviceVerificationApiKey used to validate safety net response see https://developer.android.com/google/play/safetynet/start.html#verify-compat-check
-     */
-    public SafetyNetHelper(String googleDeviceVerificationApiKey) {
-        secureRandom = new SecureRandom();
-        if (TextUtils.isEmpty(googleDeviceVerificationApiKey)) {
-            Log.w(TAG, "Google Device Verification Api Key not defined, cannot properly validate safety net response without it. See https://developer.android.com/google/play/safetynet/start.html#verify-compat-check");
-        }
-        this.googleDeviceVerificationApiKey = googleDeviceVerificationApiKey;
-    }
+							verifier.verify();
 
-    /**
-     * Simple interface for handling SafetyNet API response
-     */
-    public interface SafetyNetWrapperCallback {
-        void error(int errorCode, String errorMessage);
+							validatePayload(context, response);
 
-        void success(boolean ctsProfileMatch, boolean basicIntegrity);
-    }
+							return new Result(response);
 
-    private synchronized void buildGoogleApiClient(Context context) {
-        googleApiClient = new GoogleApiClient.Builder(context)
-                .addApi(SafetyNet.API)
-                .addConnectionCallbacks(this)
-                .addOnConnectionFailedListener(this)
-                .build();
-    }
+						} catch (SafetyNetVerificationException e) {
+							return new Result(e);
+						}
+					}
+				})
+				.addOnSuccessListener(new OnSuccessListener<Result>() {
+					@Override
+					public void onSuccess(Result result) {
+						if (result.attestationStatement != null) {
+							callback.success(result.attestationStatement);
+						} else {
+							callback.failure(result.safetyNetVerificationException);
+						}
+					}
+				})
+				.addOnFailureListener(new OnFailureListener() {
+					@Override
+					public void onFailure(@NonNull Exception e) {
+						callback.error(e);
+					}
+				});
+	}
 
+	private void validatePayload(Context context, AttestationStatement response) throws SafetyNetVerificationException {
+		String packageName = context.getPackageName();
+		List<String> apkCertificateDigests = Utils.calcApkCertificateDigests(context, packageName);
+		String apkDigest = Utils.calcApkDigest(context);
 
-    /**
-     * Call the SafetyNet test to check if this device profile /ROM has passed the CTS test
-     *
-     * @param context                  used to build and init the GoogleApiClient
-     * @param safetyNetWrapperCallback results and error handling
-     */
-    public void requestTest(@NonNull final Context context, final SafetyNetWrapperCallback safetyNetWrapperCallback) {
-        buildGoogleApiClient(context);
-        googleApiClient.connect();
-        packageName = context.getPackageName();
-        callback = safetyNetWrapperCallback;
+		if (!Arrays.equals(requestNonce, response.getNonce())) {
+			throw new SafetyNetVerificationException(PAYLOAD_VALIDATION_FAILED, "Invalid nonce, expected:" + Base64.encodeToString(requestNonce, Base64.NO_WRAP) + ", received:" + Base64.encodeToString(response.getNonce(), Base64.NO_WRAP));
+		}
 
-        apkCertificateDigests = Utils.calcApkCertificateDigests(context, packageName);
-        Log.d(TAG, "apkCertificateDigests:" + apkCertificateDigests);
-        apkDigest = Utils.calcApkDigest(context);
-        Log.d(TAG, "apkDigest:" + apkDigest);
-    }
+		if (!packageName.equalsIgnoreCase(response.getApkPackageName())) {
+			throw new SafetyNetVerificationException(PAYLOAD_VALIDATION_FAILED, "Invalid packageName, expected:" + packageName + ", received:" + response.getApkPackageName());
+		}
 
-    @Override
-    public void onConnected(Bundle bundle) {
-        Log.v(TAG, "Google play services connected");
-        runSaftyNetTest();
-    }
+		long durationOfReq = response.getTimestampMs() - requestTimestamp;
+		if (durationOfReq > MAX_TIMESTAMP_DURATION) {
+			throw new SafetyNetVerificationException(PAYLOAD_VALIDATION_FAILED, "Duration calculated from the timestamp of response \"" + durationOfReq + " \" exceeds permitted duration of \"" + MAX_TIMESTAMP_DURATION + "\"");
+		}
 
-    private void runSaftyNetTest() {
-        Log.v(TAG, "running SafetyNet.API Test");
-        requestNonce = generateOneTimeRequestNonce();
-        requestTimestamp = System.currentTimeMillis();
-        SafetyNet.SafetyNetApi.attest(googleApiClient, requestNonce)
-                .setResultCallback(new ResultCallback<SafetyNetApi.AttestationResult>() {
-                                       @Override
-                                       public void onResult(final SafetyNetApi.AttestationResult result) {
-                                           if (!validateResultStatus(result)) {
-                                               return;
-                                           }
+		if (!Arrays.equals(apkCertificateDigests.toArray(), response.getApkCertificateDigestSha256())) {
+			throw new SafetyNetVerificationException(PAYLOAD_VALIDATION_FAILED, "Invalid apkCertificateDigest, expected:" + apkCertificateDigests + ", received:" + Arrays.toString(response.getApkCertificateDigestSha256()));
+		}
 
-                                           final String jwsResult = result.getJwsResult();
-                                           final SafetyNetResponse response = parseJsonWebSignature(jwsResult);
-                                           lastResponse = response;
+		if (!apkDigest.equals(response.getApkDigestSha256())) {
+			throw new SafetyNetVerificationException(PAYLOAD_VALIDATION_FAILED, "Invalid apkDigest, expected:" + apkDigest + ", received:" + response.getApkDigestSha256());
+		}
+	}
 
-                                           //only need to validate the response if it says we pass
-                                           if (!response.isCtsProfileMatch() || !response.isBasicIntegrity()) {
-                                               callback.success(response.isCtsProfileMatch(), response.isBasicIntegrity());
-                                               return;
-                                           } else {
-                                               //validate payload of the response
-                                               if (validateSafetyNetResponsePayload(response)) {
-                                                   if (!TextUtils.isEmpty(googleDeviceVerificationApiKey)) {
-                                                       //if the api key is set, run the AndroidDeviceVerifier
-                                                       AndroidDeviceVerifier androidDeviceVerifier = new AndroidDeviceVerifier(googleDeviceVerificationApiKey, jwsResult);
-                                                       androidDeviceVerifier.verify(new AndroidDeviceVerifier.AndroidDeviceVerifierCallback() {
-                                                           @Override
-                                                           public void error(String errorMsg) {
-                                                               callback.error(RESPONSE_ERROR_VALIDATING_SIGNATURE, "Response signature validation error: " + errorMsg);
-                                                           }
+	private byte[] generateOneTimeRequestNonce() {
+		byte[] nonce = new byte[32];
+		secureRandom.nextBytes(nonce);
+		return nonce;
+	}
 
-                                                           @Override
-                                                           public void success(boolean isValidSignature) {
-                                                               if (isValidSignature) {
-                                                                   callback.success(response.isCtsProfileMatch(), response.isBasicIntegrity());
-                                                               } else {
-                                                                   callback.error(RESPONSE_FAILED_SIGNATURE_VALIDATION, "Response signature invalid");
+	/**
+	 * Simple interface for handling SafetyNet API response
+	 */
+	public interface SafetyNetWrapperCallback {
+		@UiThread
+		void success(AttestationStatement response);
 
-                                                               }
-                                                           }
-                                                       });
-                                                   } else {
-                                                       Log.w(TAG, "No google Device Verification ApiKey defined");
-                                                       callback.error(RESPONSE_FAILED_SIGNATURE_VALIDATION_NO_API_KEY, "No Google Device Verification ApiKey defined. Marking as failed. SafetyNet CtsProfileMatch: " + response.isCtsProfileMatch());
-                                                   }
-                                               } else {
-                                                   callback.error(RESPONSE_VALIDATION_FAILED, "Response payload validation failed");
-                                               }
-                                           }
-                                       }
-                                   }
+		/**
+		 * Called if we were unable to verify the SafetyNet response
+		 *
+		 * @param e
+		 */
+		@UiThread
+		void failure(SafetyNetVerificationException e);
 
-                );
-    }
+		/**
+		 * Called if we were unable to perform the SafetyNet verification request (e.g. network error)
+		 *
+		 * @param e
+		 */
+		@UiThread
+		void error(Exception e);
+	}
 
-    private boolean validateResultStatus(SafetyNetApi.AttestationResult result) {
-        Status status = result.getStatus();
-        boolean isSuccess = status.isSuccess();
+	private static class Result {
+		AttestationStatement attestationStatement;
+		SafetyNetVerificationException safetyNetVerificationException;
 
-        if (!isSuccess) {
-            // An error occurred while communicating with the SafetyNet Api
-            callback.error(SAFETY_NET_API_REQUEST_UNSUCCESSFUL, "Call to SafetyNetApi.attest was not successful");
-        }
-        return isSuccess;
-    }
+		Result(AttestationStatement attestationStatement) {
+			this.attestationStatement = attestationStatement;
+		}
 
-    /**
-     * Gets the previous successful call to the safetynetAPI - this is mainly for debug purposes.
-     *
-     * @return
-     */
-    public SafetyNetResponse getLastResponse() {
-        return lastResponse;
-    }
-
-    private boolean validateSafetyNetResponsePayload(SafetyNetResponse response) {
-        if (response == null) {
-            Log.e(TAG, "SafetyNetResponse is null.");
-            return false;
-        }
-
-        //check the request nonce is matched in the response
-        final String requestNonceBase64 = Base64.encodeToString(requestNonce, Base64.DEFAULT).trim();
-
-        if (!requestNonceBase64.equals(response.getNonce())) {
-            Log.e(TAG, "invalid nonce, expected = \"" + requestNonceBase64 + "\"");
-            Log.e(TAG, "invalid nonce, response   = \"" + response.getNonce() + "\"");
-            return false;
-        }
-
-        if (!packageName.equalsIgnoreCase(response.getApkPackageName())) {
-            Log.e(TAG, "invalid packageName, expected = \"" + packageName + "\"");
-            Log.e(TAG, "invalid packageName, response = \"" + response.getApkPackageName() + "\"");
-            return false;
-        }
-
-        long durationOfReq = response.getTimestampMs() - requestTimestamp;
-        if (durationOfReq > MAX_TIMESTAMP_DURATION) {
-            Log.e(TAG, "Duration calculated from the timestamp of response \"" + durationOfReq + " \" exceeds permitted duration of \"" + MAX_TIMESTAMP_DURATION + "\"");
-            return false;
-        }
-
-        if (!Arrays.equals(apkCertificateDigests.toArray(), response.getApkCertificateDigestSha256())) {
-            Log.e(TAG, "invalid apkCertificateDigest, local/expected = " + Arrays.asList(apkCertificateDigests));
-            Log.e(TAG, "invalid apkCertificateDigest, response = " + Arrays.asList(response.getApkCertificateDigestSha256()));
-            return false;
-        }
-
-        if (!apkDigest.equals(response.getApkDigestSha256())) {
-            Log.e(TAG, "invalid ApkDigest, local/expected = \"" + apkDigest + "\"");
-            Log.e(TAG, "invalid ApkDigest, response = \"" + response.getApkDigestSha256() + "\"");
-            return false;
-        }
-
-        return true;
-    }
-
-    @Nullable
-    private SafetyNetResponse parseJsonWebSignature(String jwsResult) {
-        if (jwsResult == null) {
-            return null;
-        }
-        //the JWT (JSON WEB TOKEN) is just a 3 base64 encoded parts concatenated by a . character
-        final String[] jwtParts = jwsResult.split("\\.");
-
-        if (jwtParts.length == 3) {
-            //we're only really interested in the body/payload
-            String decodedPayload = new String(Base64.decode(jwtParts[1], Base64.DEFAULT));
-
-            return SafetyNetResponse.parse(decodedPayload);
-        } else {
-            return null;
-        }
-    }
-
-
-    private byte[] generateOneTimeRequestNonce() {
-        byte[] nonce = new byte[32];
-        secureRandom.nextBytes(nonce);
-        return nonce;
-    }
-
-
-    @Override
-    public void onConnectionSuspended(int i) {
-
-    }
-
-    @Override
-    public void onConnectionFailed(ConnectionResult connectionResult) {
-        callback.error(connectionResult.getErrorCode(), "Google Play services connection failed");
-    }
-
+		Result(SafetyNetVerificationException safetyNetVerificationException) {
+			this.safetyNetVerificationException = safetyNetVerificationException;
+		}
+	}
 }
