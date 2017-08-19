@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          package="com.scottyab.safetynet">
+          package="eu.alessiobianchi.safetynethelper">
 
     <!-- The AndroidDeviceVerifier requires INTERNET to verfiy the response from SafetyNet -->
     <uses-permission android:name="android.permission.INTERNET" />

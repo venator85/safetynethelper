@@ -25,28 +25,6 @@ public class Utils {
 
     private static final String TAG = Utils.class.getSimpleName();
 
-    /**
-     * Created SHA256 of input
-     * @param input
-     * @return
-     */
-    public static byte[] hash(byte[] input){
-        if(input!=null) {
-            final MessageDigest digest;
-            try {
-                digest = MessageDigest.getInstance("SHA-256");
-                byte[] hashedBytes = input;
-                digest.update(hashedBytes, 0, hashedBytes.length);
-                return hashedBytes;
-            } catch (NoSuchAlgorithmException e) {
-                Log.e(TAG, "problem hashing \"" + input + "\" " + e.getMessage(), e);
-            }
-        }else{
-            Log.w(TAG, "hash called with null input byte[]");
-        }
-        return null;
-    }
-
     public static String getSigningKeyFingerprint(Context ctx) {
         String result = null;
         try {
@@ -60,11 +38,6 @@ public class Utils {
         return result;
     }
 
-    /**
-     * Gets the encoded representation of the first signing cerificated used to sign current APK
-     * @param ctx
-     * @return
-     */
     private static byte[] getSigningKeyCertificate(Context ctx) {
         try {
             PackageManager pm = ctx.getPackageManager();

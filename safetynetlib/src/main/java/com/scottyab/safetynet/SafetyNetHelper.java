@@ -26,16 +26,8 @@ import java.util.concurrent.TimeUnit;
 import static com.scottyab.safetynet.SafetyNetVerificationException.ErrorCode.PAYLOAD_VALIDATION_FAILED;
 
 
-/**
- * Simple wrapper to request google Play services - SafetyNet test
- * Based on the code samples from https://developer.android.com/google/play/safetynet/start.html
- * <p/>
- * Doesn't handle Google play services errors, just calls error on callback.
- * <p/>
- */
 public class SafetyNetHelper {
 
-	private static final String TAG = SafetyNetHelper.class.getSimpleName();
 	/**
 	 * This is used to validate the payload response from the SafetyNet.API,
 	 * if it exceeds this duration, the response is considered invalid.
@@ -170,7 +162,7 @@ public class SafetyNetHelper {
 		/**
 		 * Called if we were unable to verify the SafetyNet response
 		 *
-		 * @param e
+		 * @param e the exception
 		 */
 		@UiThread
 		void failure(SafetyNetVerificationException e);
@@ -178,7 +170,7 @@ public class SafetyNetHelper {
 		/**
 		 * Called if we were unable to perform the SafetyNet verification request (e.g. network error)
 		 *
-		 * @param e
+		 * @param e the exception
 		 */
 		@UiThread
 		void error(Exception e);

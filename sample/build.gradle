@@ -62,9 +62,5 @@ android {
 
 dependencies {
     compile project(':safetynetlib')
-
-    //testing the jitlab dependancy
-    //compile 'com.github.scottyab:safetynethelper:0.1.0@aar'
-
     compile 'com.android.support:appcompat-v7:25.3.1'
 }
