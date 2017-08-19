@@ -7,9 +7,7 @@ SafetyNet Helper wraps the Google Play Services SafetyNet.API and verifies Safet
 
 **Recommend reading the developers guide to getting started with [SafetyNet](https://developer.android.com/google/play/safetynet/start.html)**
 
-
 ![](./sample/src/main/res/mipmap-xxhdpi/ic_launcher.png)
-
 
 Extract from Android [SafetyNet API doc](https://developer.android.com/google/play/safetynet/index.html)
 
@@ -17,13 +15,11 @@ Extract from Android [SafetyNet API doc](https://developer.android.com/google/pl
 
 *Since this library release Google has created an [Safety Net Sample](https://github.com/googlesamples/android-play-safetynet/tree/master/android/SafetyNetSample)
 
+## Features
 
-##Features
-
-* Calls Google play services Safety Net test
-* Local verification of request
-* Verifies Safety Net API response with the Android Device Verification API (over SSL pinned connection)
-
+* Calls Google Play Services SafetyNet test
+* Local verification of request and response
+* Asynchronous design to avoid blocking the main thread during heavy local operations (e.g. apk digest calculation)
 
 ## Requires / Dependencies
 
@@ -31,87 +27,66 @@ Extract from Android [SafetyNet API doc](https://developer.android.com/google/pl
 * Requires Internet permission
 * Google API key for the [Android Device Verification API](https://developer.android.com/training/safetynet/index.html#verify-compat-check)
 
-##Server Validation!!!
-This library was built to get app developers up and going with SafetyNet attest API.
-With skill and time any device based checks can be bypassed. This is why the validation should be handled by the server. Therefore you should look at implementing more robust and secure validation of the `attest` response via a server-side component.
-
-* App requests the nonce / request token from your server
-* Call `SafetyNet.SafetyNetApi.attest(googleApiClient, requestNonce)
-* Pass the JWT response from SafetyNet API to your server for validation (the same validation check which this library completes)
-	* Check the nonce/request token matches the expected value
-	* verify the SafetyNet response is from Google using the Android Device Verification API
-	* verify app package, timestamp, apk and certificate digests
-
-If verification fails then at least your server would know if the device (and app installation) was compromised and take appropriate action e.g revoking OAUTH tokens.
-
-
 ## How to use
 
 You'll need to get a **API key** from the Google developer console to allow you to verify with the Android Device Verification API (in the sample project this is set via a BuildConfig field to keep my api key out of GitHub)
 
 ```java
+final SafetyNetHelper safetyNetHelper = new SafetyNetHelper(API_KEY);
 
-    final SafetyNetHelper safetyNetHelper = new SafetyNetHelper(API_KEY);
+safetyNetHelper.requestTest(this, new SafetyNetHelper.SafetyNetWrapperCallback() {
+    @UiThread
+    @Override
+    public void success(AttestationStatement response) {
+        if (response.isCtsProfileMatch()) {
+            //profile of the device running your app matches the profile of a device that has passed Android compatibility testing.
+        else if (response.isBasicIntegrity()) {
+            //then the device running your app likely wasn't tampered with, but the device has not necessarily passed Android compatibility testing.
+        } else {
+            //handle fail, maybe warn user device is unsupported or in compromised state? (this is up to you!). response.getAdvice() contains an advice on how to restore the device to a sane state.
+        }
+    }
 
-    safetyNetHelper.requestTest(context, new SafetyNetHelper.SafetyNetWrapperCallback() {
-            @Override
-            public void error(int errorCode, String msg) {
-                //handle and retry depending on errorCode
-                Log.e(TAG, msg);
-            }
+    @UiThread
+    @Override
+    public void failure(SafetyNetVerificationException e) {
+        // we were unable to validate the server response, the exception contains an errorCode with more details. This may happen if the response was tampered somehow.
+    }
 
-            @Override
-            public void success(boolean ctsProfileMatch, boolean basicIntegrity) {
-                if (ctsProfileMatch) {
-                    //profile of the device running your app matches the profile of a device that has passed Android compatibility testing.
-                else if(basicIntegrity){
-                    //then the device running your app likely wasn't tampered with, but the device has not necessarily passed Android compatibility testing.
-                } else {
-                    //handle fail, maybe warn user device is unsupported or in compromised state? (this is up to you!)
-                }
-            }
-        });
+    @UiThread
+    @Override
+    public void error(Exception e) {
+        // we were unable to perform the attest request towards Google, maybe because a network error. The exception may provide more details.
+    }
+});
 ```
 
 ### Add as dependency
 
-This library is not _yet_ released in Maven Central, until then you can add as a library module or use [JitPack.io](https://jitpack.io/#scottyab/safetynethelper)
-
-
-add remote maven url
+This library is available from JCenter.
 
 ```gradle
-
-    repositories {
-        maven {
-            url "https://jitpack.io"
-        }
-    }
+dependencies {
+    compile 'eu.alessiobianchi:safetynethelper:0.3.0'
+}
 ```
-
-then add a library dependency
-
-```gradle
-
-    dependencies {
-        compile 'com.github.scottyab:safetynethelper:0.3.0'
-    }
-```
-
 
 ## Sample App
 
-The sample app illustrates the helper library in practice. Test your own devices today. It's available on the [playstore](https://play.google.com/store/apps/details?id=com.scottyab.safetynet.sample).
+The sample app illustrates the helper library in practice. Test your own devices today. 
 
 <img width="270" src="./art/sample_req_pass_cts_pass.png">
 <br>
 <img width="270" src="./art/sample_req_pass_cts_fail.png">
 <img width="270" src="./art/sample_req_pass_validation_fail.png">
 
+## Credits
 
-##Licence
+Heavily based on Scott Alexander-Bown's [safetynethelper](https://github.com/scottyab/safetynethelper).
 
-	Copyright (c) 2015 Scott Alexander-Bown
+## Licence
+
+	Copyright (c) 2017 Alessio Bianchi
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
