@@ -17,41 +17,36 @@ android {
     }
 
     //check if SAFETY_NET_DEVICE_VERIFICATION_API_KEY is defined in gradle.properties (this is so the key is not in github)
-    String GOOGLE_VERIFICATION_API_KEY = "";
+    String GOOGLE_VERIFICATION_API_KEY
     if (project.hasProperty("SAFETY_NET_DEVICE_VERIFICATION_API_KEY")) {
         GOOGLE_VERIFICATION_API_KEY = SAFETY_NET_DEVICE_VERIFICATION_API_KEY
+    } else {
+	    throw new Exception("Please define SAFETY_NET_DEVICE_VERIFICATION_API_KEY in gradle.properties")
     }
 
-    //check if the keystore details are defined in gradle.properties (this is so the key is not in github)
-    if (project.hasProperty("SAFETY_NET_FILE")) {
-        signingConfigs {
-            //from gradle.properties
-            release {
-                storeFile file(SAFETY_NET_FILE)
-                keyAlias SAFETY_NET_KEY
-                storePassword SAFETY_NET_STORE_PASS
-                keyPassword SAFETY_NET_KEY_PASS
-            }
+    signingConfigs {
+        release {
+            storeFile file('keystore.ks')
+	        storePassword 'password'
+	        keyAlias 'safetynethelper'
+            keyPassword 'password'
         }
     }
 
     buildTypes {
+	    all {
+		    buildConfigField("String", "GOOGLE_VERIFICATION_API_KEY", "\"" + GOOGLE_VERIFICATION_API_KEY + "\"")
+	    }
         debug {
-            buildConfigField("String", "GOOGLE_VERIFICATION_API_KEY", "\"" + GOOGLE_VERIFICATION_API_KEY + "\"")
+	        signingConfig signingConfigs.release
             minifyEnabled false
-            applicationIdSuffix ".debug"
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            if (project.hasProperty("SAFETY_NET_FILE")) {
-                signingConfig signingConfigs.release
-            }
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         release {
-            buildConfigField("String", "GOOGLE_VERIFICATION_API_KEY", "\"" + GOOGLE_VERIFICATION_API_KEY + "\"")
-            minifyEnabled false
-            if (project.hasProperty("SAFETY_NET_FILE")) {
-                signingConfig signingConfigs.release
-            }
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+	        debuggable true
+	        signingConfig signingConfigs.release
+	        minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
     packagingOptions {
@@ -61,6 +56,6 @@ android {
 }
 
 dependencies {
-    compile project(':safetynetlib')
-    compile 'com.android.support:appcompat-v7:25.3.1'
+	implementation project(':safetynetlib')
+    implementation 'com.android.support:appcompat-v7:25.3.1'
 }

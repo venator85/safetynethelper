@@ -2,6 +2,7 @@ package com.scottyab.safetynet;
 
 import android.content.Context;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.annotation.UiThread;
 import android.text.TextUtils;
 import android.util.Base64;
@@ -87,7 +88,7 @@ public class SafetyNetHelper {
 						 */
 
 						try {
-							OfflineVerifier verifier = OfflineVerifier.parse(jwsResult);
+							OfflineVerifier verifier = OfflineVerifier.from(jwsResult);
 							AttestationStatement response = verifier.getAttestationStatement();
 
 							verifier.verify();
@@ -120,30 +121,42 @@ public class SafetyNetHelper {
 	}
 
 	private void validatePayload(Context context, AttestationStatement response) throws SafetyNetVerificationException {
-		String packageName = context.getPackageName();
-		List<String> apkCertificateDigests = Utils.calcApkCertificateDigests(context, packageName);
-		String apkDigest = Utils.calcApkDigest(context);
-
 		if (!Arrays.equals(requestNonce, response.getNonce())) {
-			throw new SafetyNetVerificationException(PAYLOAD_VALIDATION_FAILED, "Invalid nonce, expected:" + Base64.encodeToString(requestNonce, Base64.NO_WRAP) + ", received:" + Base64.encodeToString(response.getNonce(), Base64.NO_WRAP));
-		}
-
-		if (!packageName.equalsIgnoreCase(response.getApkPackageName())) {
-			throw new SafetyNetVerificationException(PAYLOAD_VALIDATION_FAILED, "Invalid packageName, expected:" + packageName + ", received:" + response.getApkPackageName());
+			throw new SafetyNetVerificationException(PAYLOAD_VALIDATION_FAILED, "Invalid nonce, expected:" + base64(requestNonce) + ", received:" + base64(response.getNonce()), response);
 		}
 
 		long durationOfReq = response.getTimestampMs() - requestTimestamp;
 		if (durationOfReq > MAX_TIMESTAMP_DURATION) {
-			throw new SafetyNetVerificationException(PAYLOAD_VALIDATION_FAILED, "Duration calculated from the timestamp of response \"" + durationOfReq + " \" exceeds permitted duration of \"" + MAX_TIMESTAMP_DURATION + "\"");
+			throw new SafetyNetVerificationException(PAYLOAD_VALIDATION_FAILED, "Duration calculated from the timestamp of response '" + durationOfReq + "' exceeds permitted duration of '" + MAX_TIMESTAMP_DURATION + "'", response);
 		}
 
-		if (!Arrays.equals(apkCertificateDigests.toArray(), response.getApkCertificateDigestSha256())) {
-			throw new SafetyNetVerificationException(PAYLOAD_VALIDATION_FAILED, "Invalid apkCertificateDigest, expected:" + apkCertificateDigests + ", received:" + Arrays.toString(response.getApkCertificateDigestSha256()));
-		}
+		/*
+			The apkPackageName, apkCertificateDigestSha256, and apkDigestSha256 parameters provide information about the APK that you can use to verify the identity of the calling app. These parameters are absent if the API cannot reliably determine the APK information.
+			Note: You should trust this APK information only if the value of ctsProfileMatch is true.
+		 */
+		if (response.isCtsProfileMatch()) {
+			String packageName = context.getPackageName();
+			if (!packageName.equalsIgnoreCase(response.getApkPackageName())) {
+				throw new SafetyNetVerificationException(PAYLOAD_VALIDATION_FAILED, "Invalid packageName, expected:" + packageName + ", received:" + response.getApkPackageName(), response);
+			}
 
-		if (!apkDigest.equals(response.getApkDigestSha256())) {
-			throw new SafetyNetVerificationException(PAYLOAD_VALIDATION_FAILED, "Invalid apkDigest, expected:" + apkDigest + ", received:" + response.getApkDigestSha256());
+			List<String> apkCertificateDigests = Utils.calcApkCertificateDigests(context, packageName);
+			if (!Arrays.equals(apkCertificateDigests.toArray(), response.getApkCertificateDigestSha256())) {
+				throw new SafetyNetVerificationException(PAYLOAD_VALIDATION_FAILED, "Invalid apkCertificateDigest, expected:" + apkCertificateDigests + ", received:" + Arrays.toString(response.getApkCertificateDigestSha256()), response);
+			}
+
+			String apkDigest = Utils.calcApkDigest(context);
+			if (!apkDigest.equals(response.getApkDigestSha256())) {
+				throw new SafetyNetVerificationException(PAYLOAD_VALIDATION_FAILED, "Invalid apkDigest, expected:" + apkDigest + ", received:" + response.getApkDigestSha256(), response);
+			}
 		}
+	}
+
+	private String base64(@Nullable byte[] data) {
+		if (data == null) {
+			return null;
+		}
+		return Base64.encodeToString(data, Base64.NO_WRAP);
 	}
 
 	private byte[] generateOneTimeRequestNonce() {

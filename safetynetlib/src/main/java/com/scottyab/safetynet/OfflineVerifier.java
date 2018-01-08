@@ -17,7 +17,6 @@ package com.scottyab.safetynet;/*
 
 import com.google.api.client.extensions.android.json.AndroidJsonFactory;
 import com.google.api.client.json.webtoken.JsonWebSignature;
-import com.google.api.client.json.webtoken.JsonWebToken;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
@@ -34,24 +33,22 @@ import static com.scottyab.safetynet.SafetyNetVerificationException.ErrorCode.SI
 class OfflineVerifier {
 
 	private final JsonWebSignature jws;
+	private final String signedAttestationStatement;
 
-	private OfflineVerifier(JsonWebSignature jws) {
-		this.jws = jws;
-	}
-
-	static OfflineVerifier parse(String signedAttestationStatment) throws SafetyNetVerificationException {
+	static OfflineVerifier from(String signedAttestationStatement) throws SafetyNetVerificationException {
 		try {
 			JsonWebSignature jws = JsonWebSignature.parser(AndroidJsonFactory.getDefaultInstance())
 					.setPayloadClass(AttestationStatement.class)
-					.parse(signedAttestationStatment);
-			return new OfflineVerifier(jws);
+					.parse(signedAttestationStatement);
+			return new OfflineVerifier(signedAttestationStatement, jws);
 		} catch (IOException e) {
-			throw new SafetyNetVerificationException(INVALID_JWT_RESPONSE, "AttestationStatment is not valid JWS format", e);
+			throw new SafetyNetVerificationException(INVALID_JWT_RESPONSE, "AttestationStatement is not valid JWS format: '" + signedAttestationStatement + "'", null, e);
 		}
 	}
 
-	JsonWebToken.Header getJwtHeader() {
-		return jws.getHeader();
+	private OfflineVerifier(String signedAttestationStatement, JsonWebSignature jws) {
+		this.signedAttestationStatement = signedAttestationStatement;
+		this.jws = jws;
 	}
 
 	AttestationStatement getAttestationStatement() {
@@ -64,37 +61,18 @@ class OfflineVerifier {
 		try {
 			cert = jws.verifySignature();
 			if (cert == null) {
-				throw new SafetyNetVerificationException(SIGNATURE_VERIFICATION_FAILED, "Signature verification failed");
+				throw new SafetyNetVerificationException(SIGNATURE_VERIFICATION_FAILED, "Signature verification failed, response:" + signedAttestationStatement, null);
 			}
 		} catch (GeneralSecurityException e) {
-			throw new SafetyNetVerificationException(SIGNATURE_VERIFICATION_FAILED, "Error during cryptographic verification of the JWS signature");
+			throw new SafetyNetVerificationException(SIGNATURE_VERIFICATION_FAILED, "Error during cryptographic verification of the JWS signature, response:" + signedAttestationStatement, null, e);
 		}
 
-		// Verify the hostname of the certificate.
-		if (!verifyHostname("attest.android.com", cert)) {
-			throw new SafetyNetVerificationException(INVALID_CERTIFICATE_ISSUER, "Certificate isn't issued for the hostname attest.android.com");
-		}
-	}
-
-	/**
-	 * Verifies that the certificate matches the specified hostname.
-	 * Uses the {@link DefaultHostnameVerifier} from the Apache HttpClient library
-	 * to confirm that the hostname matches the certificate.
-	 *
-	 * @param hostname
-	 * @param leafCert
-	 * @return
-	 */
-	private boolean verifyHostname(String hostname, X509Certificate leafCert) {
 		try {
-			// Check that the hostname matches the certificate. This method throws an exception if
-			// the cert could not be verified.
-			new DefaultHostnameVerifier().verify(hostname, leafCert);
-			return true;
+			// Check that the hostname matches the certificate.
+			new DefaultHostnameVerifier().verify("attest.android.com", cert);
 		} catch (SSLException e) {
-			e.printStackTrace();
+			throw new SafetyNetVerificationException(INVALID_CERTIFICATE_ISSUER, "Certificate isn't issued for the hostname attest.android.com, response:" + signedAttestationStatement, null, e);
 		}
-		return false;
 	}
 
 }

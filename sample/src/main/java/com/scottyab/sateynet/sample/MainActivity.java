@@ -8,10 +8,9 @@ import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
-import android.text.TextUtils;
-import android.util.Base64;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -26,39 +25,28 @@ import com.scottyab.safetynet.Utils;
 import com.scottyab.safetynet.sample.BuildConfig;
 import com.scottyab.safetynet.sample.R;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
+import java.util.Arrays;
 
 
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "SafetyNetHelperSAMPLE";
 
-    //*** REPLACE with your own!! ***
-    private static final String API_KEY = BuildConfig.GOOGLE_VERIFICATION_API_KEY;
-    private View loading;
+	private View loading;
 
     private SafetyNetHelper safetyNetHelper;
     private AttestationStatement lastAttestationStatement;
 
     private TextView resultsTV;
-    private TextView nonceTV;
-    private TextView timestampTV;
     private View resultsContainer;
     private ImageView resultsIcon;
-    private View successResultsContainer;
-    private TextView packageNameTV;
-    private TextView resultNoteTV;
-    private TextView welcomeTV;
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        safetyNetHelper = new SafetyNetHelper(API_KEY);
+        safetyNetHelper = new SafetyNetHelper(BuildConfig.GOOGLE_VERIFICATION_API_KEY);
 
         Log.d(TAG, "AndroidAPIKEY: " + Utils.getSigningKeyFingerprint(this) + ";" + getPackageName());
 
@@ -66,14 +54,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initViews() {
-        welcomeTV = (TextView) findViewById(R.id.welcomeTV);
         resultsTV = (TextView) findViewById(R.id.results);
-        resultNoteTV = (TextView) findViewById(R.id.resultsNote);
-        nonceTV = (TextView) findViewById(R.id.nonce);
-        timestampTV = (TextView) findViewById(R.id.timestamp);
-        packageNameTV = (TextView) findViewById(R.id.packagename);
         resultsContainer = findViewById(R.id.resultsContainer);
-        successResultsContainer = findViewById(R.id.sucessResultsContainer);
         loading = findViewById(R.id.loading);
         resultsIcon = (ImageView) findViewById(R.id.resultIcon);
 
@@ -116,15 +98,21 @@ public class MainActivity extends AppCompatActivity {
 		resultsTV.setText(failure ? "Failure" : "Error");
 		String msg;
 		if (e instanceof SafetyNetVerificationException) {
-			msg = ((SafetyNetVerificationException) e).getErrorCode() + "\n" + e.toString();
+			SafetyNetVerificationException sfe = (SafetyNetVerificationException) e;
+			msg = sfe.getErrorCode() + " - " + e.toString();
+			if (sfe.getResponse() != null) {
+				msg += "\nresponse: " + attestationStmtToString(sfe.getResponse());
+			}
 		} else {
 			msg = e.toString();
 		}
-		resultNoteTV.setText(msg);
+		resultsTV.setText(msg);
 
-		resultsIcon.setImageResource(R.drawable.problem);
-		successResultsContainer.setVisibility(View.GONE);
-		welcomeTV.setVisibility(View.GONE);
+		if (failure) {
+			resultsIcon.setImageResource(R.drawable.fail);
+		} else {
+			resultsIcon.setImageResource(R.drawable.problem);
+		}
 		revealResults(ContextCompat.getColor(this, R.color.problem));
 	}
 
@@ -133,7 +121,6 @@ public class MainActivity extends AppCompatActivity {
         if (show) {
             resultsContainer.setBackgroundColor(Color.TRANSPARENT);
             resultsContainer.setVisibility(View.GONE);
-            welcomeTV.setVisibility(View.GONE);
         }
     }
 
@@ -168,28 +155,28 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateUIWithSuccessfulResult(AttestationStatement safetyNetResponse) {
-        resultsTV.setText(getString(R.string.safety_results, safetyNetResponse.isCtsProfileMatch(), safetyNetResponse.isBasicIntegrity()));
-        if (!TextUtils.isEmpty(safetyNetResponse.getAdvice())) {
-	        resultsTV.append("\nAdvice: ");
-	        resultsTV.append(safetyNetResponse.getAdvice());
-        }
-        resultNoteTV.setText(R.string.safety_results_note);
-
-        successResultsContainer.setVisibility(View.VISIBLE);
-
-        nonceTV.setText(Base64.encodeToString(safetyNetResponse.getNonce(), Base64.NO_WRAP));
-
-        SimpleDateFormat sim = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault());
-        Date timeOfResponse = new Date(safetyNetResponse.getTimestampMs());
-        timestampTV.setText(sim.format(timeOfResponse));
-        packageNameTV.setText(safetyNetResponse.getApkPackageName());
+	    resultsTV.setText(attestationStmtToString(safetyNetResponse));
 
         resultsIcon.setImageResource(safetyNetResponse.isCtsProfileMatch() ? R.drawable.pass : R.drawable.fail);
 
         revealResults(ContextCompat.getColor(this, safetyNetResponse.isCtsProfileMatch() ? R.color.pass : R.color.fail));
     }
 
-    @Override
+	@NonNull
+	private String attestationStmtToString(AttestationStatement safetyNetResponse) {
+		return "AttestationStatement{\n" +
+				    "  nonce='" + android.util.Base64.encodeToString(safetyNetResponse.getNonce(), android.util.Base64.NO_WRAP) + '\'' +
+				    ",\n  timestampMs=" + safetyNetResponse.getTimestampMs() +
+				    ",\n  apkPackageName='" + safetyNetResponse.getApkPackageName() + '\'' +
+				    ",\n  apkCertificateDigestSha256=" + Arrays.toString(safetyNetResponse.getApkCertificateDigestSha256()) +
+				    ",\n  apkDigestSha256='" + safetyNetResponse.getApkDigestSha256() + '\'' +
+				    ",\n  ctsProfileMatch=" + safetyNetResponse.isCtsProfileMatch() +
+				    ",\n  basicIntegrity=" + safetyNetResponse.isBasicIntegrity() +
+				    ",\n  advice='" + safetyNetResponse.getAdvice() + '\'' +
+				    "\n}";
+	}
+
+	@Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.menu_main, menu);
         return true;
