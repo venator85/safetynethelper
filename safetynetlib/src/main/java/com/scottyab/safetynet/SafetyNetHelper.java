@@ -144,11 +144,6 @@ public class SafetyNetHelper {
 			if (!Arrays.equals(apkCertificateDigests.toArray(), response.getApkCertificateDigestSha256())) {
 				throw new SafetyNetVerificationException(PAYLOAD_VALIDATION_FAILED, "Invalid apkCertificateDigest, expected:" + apkCertificateDigests + ", received:" + Arrays.toString(response.getApkCertificateDigestSha256()), response);
 			}
-
-			String apkDigest = Utils.calcApkDigest(context);
-			if (!apkDigest.equals(response.getApkDigestSha256())) {
-				throw new SafetyNetVerificationException(PAYLOAD_VALIDATION_FAILED, "Invalid apkDigest, expected:" + apkDigest + ", received:" + response.getApkDigestSha256(), response);
-			}
 		}
 	}
 
