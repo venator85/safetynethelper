@@ -15,3 +15,4 @@ captures/
 # Misc
 .DS_Store
 gradle.properties
+deploy.sh
