@@ -80,7 +80,6 @@ public class SafetyNetHelper {
 					public Result then(@NonNull Task<SafetyNetApi.AttestationResponse> task) throws Exception {
 						final String jwsResult = task.getResult()
 								.getJwsResult();
-
 						/*
 						 * We perform the response verification on an executor (background thread) since the apk
 						 * digest calculation may took a long time if the apk is large, and we will deliver the

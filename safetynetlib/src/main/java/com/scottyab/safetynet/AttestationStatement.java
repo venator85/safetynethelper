@@ -1,23 +1,10 @@
-package com.scottyab.safetynet;/*
- * Copyright 2017 Google Inc. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- */
+package com.scottyab.safetynet;
 
-import com.google.api.client.json.webtoken.JsonWebSignature;
-import com.google.api.client.util.Base64;
-import com.google.api.client.util.Key;
+import android.util.Base64;
+
+import com.google.gson.annotations.SerializedName;
+
+import java.util.Arrays;
 
 /**
  * A statement returned by the Attestation API.
@@ -26,50 +13,50 @@ public class AttestationStatement extends JsonWebSignature.Payload {
 	/**
 	 * Embedded nonce sent as part of the request.
 	 */
-	@Key("nonce")
+	@SerializedName("nonce")
 	private String nonce;
 
 	/**
 	 * Timestamp of the request.
 	 */
-	@Key("timestampMs")
+	@SerializedName("timestampMs")
 	private long timestampMs;
 
 	/**
 	 * Package name of the APK that submitted this request.
 	 */
-	@Key("apkPackageName")
+	@SerializedName("apkPackageName")
 	private String apkPackageName;
 
 	/**
 	 * Digest of certificate of the APK that submitted this request.
 	 */
-	@Key("apkCertificateDigestSha256")
+	@SerializedName("apkCertificateDigestSha256")
 	private String[] apkCertificateDigestSha256;
 
 	/**
 	 * Digest of the APK that submitted this request.
 	 */
-	@Key("apkDigestSha256")
+	@SerializedName("apkDigestSha256")
 	private String apkDigestSha256;
 
 	/**
 	 * The device passed CTS and matches a known profile.
 	 */
-	@Key("ctsProfileMatch")
+	@SerializedName("ctsProfileMatch")
 	private boolean ctsProfileMatch;
 
 	/**
 	 * The device has passed a basic integrity test, but the CTS profile could not be verified.
 	 */
-	@Key("basicIntegrity")
+	@SerializedName("basicIntegrity")
 	private boolean basicIntegrity;
 
-	@Key("advice")
+	@SerializedName("advice")
 	private String advice;
 
 	public byte[] getNonce() {
-		return Base64.decodeBase64(nonce);
+		return Base64.decode(nonce, Base64.NO_WRAP);
 	}
 
 	public long getTimestampMs() {
@@ -98,5 +85,20 @@ public class AttestationStatement extends JsonWebSignature.Payload {
 
 	public String getAdvice() {
 		return advice;
+	}
+
+	@Override
+	public String toString() {
+		return "AttestationStatement{" +
+				"super=" + super.toString() +
+				", nonce='" + nonce + '\'' +
+				", timestampMs=" + timestampMs +
+				", apkPackageName='" + apkPackageName + '\'' +
+				", apkCertificateDigestSha256=" + Arrays.toString(apkCertificateDigestSha256) +
+				", apkDigestSha256='" + apkDigestSha256 + '\'' +
+				", ctsProfileMatch=" + ctsProfileMatch +
+				", basicIntegrity=" + basicIntegrity +
+				", advice='" + advice + '\'' +
+				'}';
 	}
 }

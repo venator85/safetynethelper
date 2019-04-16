@@ -1,19 +1,13 @@
 apply plugin: 'com.android.application'
 
-repositories {
-    maven {
-        url "https://jitpack.io"
-    }
-}
-
 android {
-    compileSdkVersion 25
+    compileSdkVersion 27
     defaultConfig {
         applicationId 'com.scottyab.safetynet.sample'
         minSdkVersion 16
-        targetSdkVersion 25
-        versionCode 5
-        versionName "0.5"
+        targetSdkVersion 27
+        versionCode 6
+        versionName "0.6"
     }
 
     //check if SAFETY_NET_DEVICE_VERIFICATION_API_KEY is defined in gradle.properties (this is so the key is not in github)
@@ -57,5 +51,5 @@ android {
 
 dependencies {
 	implementation project(':safetynetlib')
-    implementation 'com.android.support:appcompat-v7:25.3.1'
+    implementation 'com.android.support:appcompat-v7:27.1.1'
 }

@@ -95,6 +95,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
 	private void handleError(boolean failure, Exception e) {
+    	Log.e("SafetyNet", failure ? "Failure" : "Error", e);
+
 		resultsTV.setText(failure ? "Failure" : "Error");
 		String msg;
 		if (e instanceof SafetyNetVerificationException) {

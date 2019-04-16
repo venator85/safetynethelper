@@ -1,30 +1,22 @@
-# taken from: https://github.com/google/google-api-java-client-samples/blob/master/tasks-android-sample/proguard-google-api-client.txt
+##---------------Begin: proguard configuration for Gson  ----------
+# Gson uses generic type information stored in a class file when working with fields. Proguard
+# removes such information by default, so configure it to keep all of it.
+-keepattributes Signature
 
-# Needed to keep generic types and @Key annotations accessed via reflection
--keepattributes Signature,RuntimeVisibleAnnotations,AnnotationDefault
+# For using GSON @Expose annotation
+-keepattributes *Annotation*
 
--keepclassmembers class * {
-  @com.google.api.client.util.Key <fields>;
-}
+# Gson specific classes
+-dontwarn sun.misc.**
+#-keep class com.google.gson.stream.** { *; }
 
-# Needed by google-http-client-android when linking against an older platform version
+# Application classes that will be serialized/deserialized over Gson
+-keep class com.google.gson.examples.android.model.** { *; }
 
--dontwarn com.google.api.client.extensions.android.**
+# Prevent proguard from stripping interface information from TypeAdapterFactory,
+# JsonSerializer, JsonDeserializer instances (so they can be used in @JsonAdapter)
+-keep class * implements com.google.gson.TypeAdapterFactory
+-keep class * implements com.google.gson.JsonSerializer
+-keep class * implements com.google.gson.JsonDeserializer
 
-# Needed by google-api-client-android when linking against an older platform version
-
--dontwarn com.google.api.client.googleapis.extensions.android.**
-
-# Needed by google-play-services when linking against an older platform version
-
--dontwarn com.google.android.gms.**
-
-# com.google.client.util.IOUtils references java.nio.file.Files when on Java 7+
--dontnote java.nio.file.Files, java.nio.file.Path
-
-# Suppress notes on LicensingServices
--dontnote **.ILicensingService
-
-# Suppress warnings on sun.misc.Unsafe
--dontnote sun.misc.Unsafe
--dontwarn sun.misc.Unsafe
+##---------------End: proguard configuration for Gson  ----------
