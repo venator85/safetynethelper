@@ -1,5 +1,7 @@
 package com.scottyab.safetynet;
 
+import android.net.http.X509TrustManagerExtensions;
+import android.os.Build.VERSION;
 import android.support.annotation.NonNull;
 import android.util.Base64;
 
@@ -77,7 +79,14 @@ final class SecurityUtils {
 			}
 			certificates[currentCert++] = (X509Certificate) cert;
 		}
-		trustManager.checkServerTrusted(certificates, "RSA");
+
+		if (VERSION.SDK_INT >= 17) {
+			X509TrustManagerExtensions tme = new X509TrustManagerExtensions(trustManager);
+			tme.checkServerTrusted(certificates, "RSA", "attest.android.com");
+		} else {
+			trustManager.checkServerTrusted(certificates, "RSA");
+		}
+
 		PublicKey pubKey = certificates[0].getPublicKey();
 		if (verify(signatureAlgorithm, pubKey, signatureBytes, contentBytes)) {
 			return certificates[0];
