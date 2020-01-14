@@ -25,7 +25,10 @@
  *
  */
 
-package cz.msebera.android.httpclient.conn.ssl;
+package com.scottyab.safetynet.internal.cz.msebera.android.httpclient.conn.ssl;
+
+import com.scottyab.safetynet.internal.cz.msebera.android.httpclient.conn.util.InetAddressUtils;
+import com.scottyab.safetynet.internal.cz.msebera.android.httpclient.conn.util.PublicSuffixMatcher;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -41,9 +44,6 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSession;
 import javax.security.auth.x500.X500Principal;
-
-import cz.msebera.android.httpclient.conn.util.InetAddressUtils;
-import cz.msebera.android.httpclient.conn.util.PublicSuffixMatcher;
 
 /* Javax.Naming package removed by HttpClient for Android script. */
 /* Javax.Naming package removed by HttpClient for Android script. */

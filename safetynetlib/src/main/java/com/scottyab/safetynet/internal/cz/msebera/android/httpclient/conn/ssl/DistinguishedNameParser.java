@@ -14,10 +14,12 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package cz.msebera.android.httpclient.conn.ssl;
+package com.scottyab.safetynet.internal.cz.msebera.android.httpclient.conn.ssl;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
 import javax.security.auth.x500.X500Principal;
 /**
  * A distinguished name (DN) parser. This parser only supports extracting a

@@ -1,6 +1,6 @@
 package com.scottyab.safetynet;
 
-import android.support.annotation.Nullable;
+import androidx.annotation.Nullable;
 
 public class SafetyNetVerificationException extends Exception {
 

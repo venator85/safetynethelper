@@ -24,7 +24,7 @@
  * <http://www.apache.org/>.
  *
  */
-package cz.msebera.android.httpclient.conn.util;
+package com.scottyab.safetynet.internal.cz.msebera.android.httpclient.conn.util;
 
 import java.net.IDN;
 import java.util.Collection;

@@ -8,9 +8,6 @@ import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -26,6 +23,10 @@ import com.scottyab.safetynet.sample.BuildConfig;
 import com.scottyab.safetynet.sample.R;
 
 import java.util.Arrays;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -54,10 +55,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initViews() {
-        resultsTV = (TextView) findViewById(R.id.results);
+        resultsTV = findViewById(R.id.results);
         resultsContainer = findViewById(R.id.resultsContainer);
         loading = findViewById(R.id.loading);
-        resultsIcon = (ImageView) findViewById(R.id.resultIcon);
+        resultsIcon = findViewById(R.id.resultIcon);
 
         findViewById(R.id.runTestButton).setOnClickListener(new View.OnClickListener() {
             @Override
@@ -128,17 +129,13 @@ public class MainActivity extends AppCompatActivity {
 
     @TargetApi(Build.VERSION_CODES.HONEYCOMB)
     private void revealResults(Integer colorTo) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-            doPropertyAnimatorReveal(colorTo);
-            resultsContainer.setVisibility(View.VISIBLE);
-        } else {
-            resultsContainer.setVisibility(View.VISIBLE);
-        }
-    }
+		doPropertyAnimatorReveal(colorTo);
+		resultsContainer.setVisibility(View.VISIBLE);
+	}
 
     @TargetApi(Build.VERSION_CODES.HONEYCOMB)
     private void doPropertyAnimatorReveal(Integer colorTo) {
-        Integer colorFrom = Color.TRANSPARENT;
+        int colorFrom = Color.TRANSPARENT;
         Drawable background = resultsContainer.getBackground();
         if (background instanceof ColorDrawable) {
             colorFrom = ((ColorDrawable) background).getColor();

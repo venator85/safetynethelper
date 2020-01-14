@@ -25,7 +25,7 @@
  *
  */
 
-package cz.msebera.android.httpclient.conn.util;
+package com.scottyab.safetynet.internal.cz.msebera.android.httpclient.conn.util;
 
 import java.util.regex.Pattern;
 

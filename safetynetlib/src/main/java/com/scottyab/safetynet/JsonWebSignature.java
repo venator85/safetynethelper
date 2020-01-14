@@ -14,7 +14,6 @@
 
 package com.scottyab.safetynet;
 
-import android.support.annotation.NonNull;
 import android.util.Base64;
 
 import com.google.gson.Gson;
@@ -30,6 +29,8 @@ import java.util.List;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
+
+import androidx.annotation.NonNull;
 
 /**
  * <a href="http://tools.ietf.org/html/draft-ietf-jose-json-web-signature-11">JSON Web Signature

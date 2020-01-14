@@ -1,14 +1,13 @@
 package com.scottyab.safetynet;
 
 import com.google.gson.Gson;
+import com.scottyab.safetynet.internal.cz.msebera.android.httpclient.conn.ssl.DefaultHostnameVerifier;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.security.cert.X509Certificate;
 
 import javax.net.ssl.SSLException;
-
-import cz.msebera.android.httpclient.conn.ssl.DefaultHostnameVerifier;
 
 import static com.scottyab.safetynet.SafetyNetVerificationException.ErrorCode.INVALID_CERTIFICATE_ISSUER;
 import static com.scottyab.safetynet.SafetyNetVerificationException.ErrorCode.INVALID_JWT_RESPONSE;

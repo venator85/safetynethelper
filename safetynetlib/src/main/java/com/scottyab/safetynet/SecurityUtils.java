@@ -2,7 +2,6 @@ package com.scottyab.safetynet;
 
 import android.net.http.X509TrustManagerExtensions;
 import android.os.Build.VERSION;
-import android.support.annotation.NonNull;
 import android.util.Base64;
 
 import java.io.ByteArrayInputStream;
@@ -17,6 +16,8 @@ import java.security.cert.X509Certificate;
 import java.util.List;
 
 import javax.net.ssl.X509TrustManager;
+
+import androidx.annotation.NonNull;
 
 /**
  * Utilities related to Java security.

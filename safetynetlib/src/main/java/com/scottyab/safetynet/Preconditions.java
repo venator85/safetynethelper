@@ -1,6 +1,6 @@
 package com.scottyab.safetynet;
 
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 
 class Preconditions {
 	static void checkArgument(boolean expression) {

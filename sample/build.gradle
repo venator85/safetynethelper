@@ -1,22 +1,21 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 27
+    compileSdkVersion 28
     defaultConfig {
         applicationId 'com.scottyab.safetynet.sample'
         minSdkVersion 16
-        targetSdkVersion 27
-        versionCode 6
-        versionName "0.6"
+        targetSdkVersion 28
+        versionCode 7
+        versionName "0.7"
     }
 
-    //check if SAFETY_NET_DEVICE_VERIFICATION_API_KEY is defined in gradle.properties (this is so the key is not in github)
-    String GOOGLE_VERIFICATION_API_KEY
-    if (project.hasProperty("SAFETY_NET_DEVICE_VERIFICATION_API_KEY")) {
-        GOOGLE_VERIFICATION_API_KEY = SAFETY_NET_DEVICE_VERIFICATION_API_KEY
-    } else {
-	    throw new Exception("Please define SAFETY_NET_DEVICE_VERIFICATION_API_KEY in gradle.properties")
-    }
+	def props = new Properties()
+	file("apikey.properties").withInputStream { props.load(it) }
+	String GOOGLE_VERIFICATION_API_KEY = props.getProperty("APIKEY")
+	if (GOOGLE_VERIFICATION_API_KEY == null || GOOGLE_VERIFICATION_API_KEY.isEmpty()) {
+		throw new Exception("Please define APIKEY in apikey.properties")
+	}
 
     signingConfigs {
         release {
@@ -51,5 +50,5 @@ android {
 
 dependencies {
 	implementation project(':safetynetlib')
-    implementation 'com.android.support:appcompat-v7:27.1.1'
+    implementation 'androidx.appcompat:appcompat:1.1.0'
 }
